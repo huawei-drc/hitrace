@@ -1,11 +1,12 @@
 [package]
 name = "hitrace"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 keywords = ["OpenHarmony", "HarmonyOS", "hitrace", "tracing"]
 license = "Apache-2.0"
 description = "Safe bindings to the HiTrace tracing system of OpenHarmony"
-repository = "https://github.com/jschwe/hitrace"
+repository = "https://github.com/huawei-drc/hitrace"
+readme = "README.md"
 
 [target.'cfg(target_env = "ohos")'.dependencies]
 hitrace-sys = "0.1"
