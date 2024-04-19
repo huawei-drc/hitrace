@@ -82,6 +82,7 @@ impl ScopedTrace {
     /// finish_trace will end the span of the most recently started trace.
     /// Users should try not to mix `ScopedTrace` with manual calls to `finish_trace()`,
     /// and should avoid passing the `ScopedTrace` object around.
+    #[must_use]
     pub fn start_trace<T: AsRef<CStr>>(name: &T) -> Self {
         start_trace(name);
         Self {
@@ -94,8 +95,25 @@ impl ScopedTrace {
     /// # Panic
     ///
     /// Panics if the provided name can't be converted into a CString.
+    #[must_use]
     pub fn start_trace_str(name: &str) -> Self {
         Self::start_trace(&CString::new(name).expect("Contained null-byte"))
+    }
+
+    // A hidden function, which should only be used by hitrace-macro,
+    // until `c""` syntax is available.
+    #[doc(hidden)]
+    pub unsafe fn _start_trace_str_with_null(name_with_null: &str) -> Self {
+        #[cfg(not(target_env = "ohos"))]
+        let _ = name_with_null;
+        // SAFETY: The User promises that the `str` slice is a valid null-terminated C-style string.
+        #[cfg(target_env = "ohos")]
+        unsafe {
+            hitrace_sys::OH_HiTrace_StartTrace(name_with_null.as_ptr());
+        }
+        Self {
+            phantom_data: PhantomData,
+        }
     }
 }
 
@@ -107,7 +125,9 @@ impl Drop for ScopedTrace {
 
 #[cfg(test)]
 mod test {
-    use crate::ScopedTrace;
     use static_assertions::assert_not_impl_any;
+
+    use crate::ScopedTrace;
+
     assert_not_impl_any!(ScopedTrace: Send, Sync);
 }

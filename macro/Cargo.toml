@@ -1,0 +1,15 @@
+[package]
+name = "hitrace-macro"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Convienience macros for instrumenting code with hitrace"
+repository = "https://github.com/huawei-drc/hitrace"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0.60", features = ["parsing", "full"] }
+quote = "1"
+proc-macro2 = "1.0.81"
