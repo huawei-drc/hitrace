@@ -16,14 +16,17 @@
 //! # fn OH_HiTrace_FinishTrace() {}
 //! # fn step1() {}
 //! # fn step2() {}
+//! # use hitrace::{start_trace, finish_trace};
+//! # use std::ffi::CString;
 //! fn load_website() {
-//!     start_trace(c"step1");
+//!     start_trace(&c"step1");
 //!     step1();
 //!     finish_trace();
-//!     start_trace(CString::new("step2").unwrap())
+//!     start_trace(&CString::new("step2").unwrap());
 //!     step2();
+//!     finish_trace();
 //! }
-//! start_trace(c"LoadingWebsite");
+//! start_trace(&c"LoadingWebsite");
 //! load_website();
 //! finish_trace();
 //! ```
