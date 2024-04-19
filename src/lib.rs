@@ -34,7 +34,8 @@
 //!
 //! [`HiTrace`]: <https://gitee.com/openharmony/hiviewdfx_hitrace>
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
+use std::marker::PhantomData;
 
 pub fn start_trace<T: AsRef<CStr>>(name: &T) {
     start_trace_cstr(name.as_ref())
@@ -67,4 +68,46 @@ pub fn finish_trace() {
     fn finish_trace_() {}
 
     finish_trace_()
+}
+
+pub struct ScopedTrace {
+    // Remove Send / Sync, since the trace needs to be finished on the same thread.
+    phantom_data: PhantomData<*mut u8>,
+}
+
+impl ScopedTrace {
+    /// Starts a new ScopedTrace, which ends when the returned object is dropped.
+    ///
+    /// Keep in mind the general limitations of HiTrace, where a call to
+    /// finish_trace will end the span of the most recently started trace.
+    /// Users should try not to mix `ScopedTrace` with manual calls to `finish_trace()`,
+    /// and should avoid passing the `ScopedTrace` object around.
+    pub fn start_trace<T: AsRef<CStr>>(name: &T) -> Self {
+        start_trace(name);
+        Self {
+            phantom_data: PhantomData,
+        }
+    }
+
+    /// Like `start_trace()` but accepts a `&str`.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the provided name can't be converted into a CString.
+    pub fn start_trace_str(name: &str) -> Self {
+        Self::start_trace(&CString::new(name).expect("Contained null-byte"))
+    }
+}
+
+impl Drop for ScopedTrace {
+    fn drop(&mut self) {
+        finish_trace()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::ScopedTrace;
+    use static_assertions::assert_not_impl_any;
+    assert_not_impl_any!(ScopedTrace: Send, Sync);
 }
