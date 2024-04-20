@@ -41,7 +41,7 @@ pub fn start_trace<T: AsRef<CStr>>(name: &T) {
     start_trace_cstr(name.as_ref())
 }
 
-#[cfg(target_env = "ohos")]
+#[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
 fn start_trace_cstr(name: &CStr) {
     // SAFETY: We have a valid CStr, which is copied by `OH_HiTrace_StartTrace`.
     unsafe {
@@ -49,12 +49,12 @@ fn start_trace_cstr(name: &CStr) {
     }
 }
 
-#[cfg(not(target_env = "ohos"))]
+#[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
 fn start_trace_cstr(_: &CStr) {}
 
 /// Finishes the most recently started trace span
 pub fn finish_trace() {
-    #[cfg(target_env = "ohos")]
+    #[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
     fn finish_trace_() {
         // Todo: We should check in the OpenHarmony code to make sure that
         // `OH_HiTrace_FinishTrace` does not cause Memory Safety issues, if called
@@ -64,7 +64,7 @@ pub fn finish_trace() {
         }
     }
 
-    #[cfg(not(target_env = "ohos"))]
+    #[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
     fn finish_trace_() {}
 
     finish_trace_()
@@ -104,10 +104,10 @@ impl ScopedTrace {
     // until `c""` syntax is available.
     #[doc(hidden)]
     pub unsafe fn _start_trace_str_with_null(name_with_null: &str) -> Self {
-        #[cfg(not(target_env = "ohos"))]
+        #[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
         let _ = name_with_null;
         // SAFETY: The User promises that the `str` slice is a valid null-terminated C-style string.
-        #[cfg(target_env = "ohos")]
+        #[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
         unsafe {
             hitrace_sys::OH_HiTrace_StartTrace(name_with_null.as_ptr());
         }
