@@ -123,6 +123,46 @@ impl Drop for ScopedTrace {
     }
 }
 
+/// Starts an async trace identified by `name` and `task_id`.
+///
+/// Safe wrapper around [hitrace_sys::OH_HiTrace_StartAsyncTrace].
+/// The `task_id` must be unique among all concurrent trace-spans with
+/// the same name.
+pub fn start_async_trace<T: AsRef<CStr>>(name: &T, task_id: i32) {
+    start_async_trace_cstr(name.as_ref(), task_id)
+}
+
+#[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
+fn start_async_trace_cstr(name: &CStr, task_id: i32) {
+    // SAFETY: We have a valid CStr, which is copied by `OH_HiTrace_StartTrace`.
+    unsafe {
+        hitrace_sys::OH_HiTrace_StartAsyncTrace(name.as_ptr(), task_id);
+    }
+}
+
+#[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
+fn start_async_trace_cstr(_: &CStr, _: i32) {}
+
+/// Finishes an async trace span identified by `name` and `task_id`.
+///
+/// Safe wrapper around [hitrace_sys::OH_HiTrace_FinishAsyncTrace].
+/// The `task_id` must be unique among all concurrent trace-spans with
+/// the same name.
+pub fn finish_async_trace<T: AsRef<CStr>>(name: &T, task_id: i32) {
+    finish_async_trace_cstr(name.as_ref(), task_id)
+}
+
+#[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
+fn finish_async_trace_cstr(name: &CStr, task_id: i32) {
+    // SAFETY: We have a valid CStr, which is copied by `OH_HiTrace_StartTrace`.
+    unsafe {
+        hitrace_sys::OH_HiTrace_FinishAsyncTrace(name.as_ptr(), task_id);
+    }
+}
+
+#[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
+fn finish_async_trace_cstr(_: &CStr, _: i32) {}
+
 #[cfg(test)]
 mod test {
     use static_assertions::assert_not_impl_any;
