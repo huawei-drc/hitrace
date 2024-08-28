@@ -70,6 +70,23 @@ pub fn finish_trace() {
     finish_trace_()
 }
 
+pub fn count_trace<T: AsRef<CStr>>(name: &T, count: i64) {
+    count_trace_cstr(name.as_ref(), count)
+}
+
+/// Wrapper function for `OH_HiTrace_CountTrace` with a CStr name parameter
+#[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
+pub fn count_trace_cstr(name: &CStr, count: i64) {
+    // SAFETY: We have a valid CStr, and the count is a valid i64 value.
+    unsafe {
+        hitrace_sys::OH_HiTrace_CountTrace(name.as_ptr(), count);
+    }
+}
+
+// No-op function for non-`ohos` or `max_level_off` configurations
+#[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
+pub fn count_trace_cstr(_: &CStr, _: i64) {}
+
 pub struct ScopedTrace {
     // Remove Send / Sync, since the trace needs to be finished on the same thread.
     phantom_data: PhantomData<*mut u8>,
@@ -114,6 +131,27 @@ impl ScopedTrace {
         Self {
             phantom_data: PhantomData,
         }
+    }
+
+    /// Starts a count trace for the given name and count value.
+    ///
+    /// This method is used to trace the value change of an integer variable.
+    #[must_use]
+    pub fn start_count_trace<T: AsRef<CStr>>(name: &T, count: i64) -> Self {
+        count_trace(name, count);
+        Self {
+            phantom_data: PhantomData,
+        }
+    }
+
+    /// Like `start_count_trace()` but accepts a `&str` for the name.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the provided name can't be converted into a CString.
+    #[must_use]
+    pub fn start_count_trace_str(name: &str, count: i64) -> Self {
+        Self::start_count_trace(&CString::new(name).expect("Contained null-byte"), count)
     }
 }
 
