@@ -70,22 +70,102 @@ pub fn finish_trace() {
     finish_trace_()
 }
 
-pub fn count_trace<T: AsRef<CStr>>(name: &T, count: i64) {
-    count_trace_cstr(name.as_ref(), count)
-}
-
 /// Wrapper function for `OH_HiTrace_CountTrace` with a CStr name parameter
 #[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
-pub fn count_trace_cstr(name: &CStr, count: i64) {
-    // SAFETY: We have a valid CStr, and the count is a valid i64 value.
+fn trace_metric_cstr(name: &CStr, count: i64) {
     unsafe {
         hitrace_sys::OH_HiTrace_CountTrace(name.as_ptr(), count);
     }
 }
 
-// No-op function for non-`ohos` or `max_level_off` configurations
 #[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
-pub fn count_trace_cstr(_: &CStr, _: i64) {}
+fn trace_metric_cstr(_: &CStr, _: i64) {}
+
+/// A function to log a count trace event with a name and any integer count that implements `Into<i64>`.
+fn trace_metric<T: AsRef<CStr>, C: Into<i64>>(name: &T, count: C) {
+    trace_metric_cstr(name.as_ref(), count.into());
+}
+
+/// Logs a count trace event with a `&str` name and an integer count that can be converted to `i64`.
+///
+/// # Arguments
+/// * `name` - The name of the event.
+/// * `count` - The integer count, convertible to `i64`.
+///
+/// # Panics
+/// Panics if `name` contains a null byte.
+pub fn trace_metric_str<C: Into<i64>>(name: &str, count: C) {
+    let c_string = CString::new(name).expect("Failed to convert to CString");
+    trace_metric(&c_string, count.into());
+}
+
+/// Logs a count trace event with a name and an integer count, using saturating conversion to `i64`.
+///
+/// # Arguments
+/// * `name` - The name of the event (as `CStr` or `CString`).
+/// * `count` - The integer count, implementing `SaturatingIntoI64`.
+pub fn trace_metric_saturating<T: AsRef<CStr>>(name: &T, count: impl SaturatingIntoI64) {
+    trace_metric_cstr(name.as_ref(), count.saturating_into());
+}
+
+/// Logs a count trace event with a `&str` name and an integer count, using saturating conversion to `i64`.
+///
+/// # Arguments
+/// * `name` - The name of the event.
+/// * `count` - The integer count, implementing `SaturatingIntoI64`.
+///
+/// # Panics
+/// Panics if `name` contains a null byte.
+pub fn trace_metric_saturating_str(name: &str, count: impl SaturatingIntoI64) {
+    let c_string = CString::new(name).expect("Failed to convert to CString");
+    trace_metric_saturating(&c_string, count);
+}
+
+pub trait SaturatingIntoI64 {
+    fn saturating_into(self) -> i64;
+}
+
+impl SaturatingIntoI64 for u64 {
+    fn saturating_into(self) -> i64 {
+        self.min(i64::MAX as u64) as i64
+    }
+}
+
+impl SaturatingIntoI64 for i128 {
+    fn saturating_into(self) -> i64 {
+        if self > i64::MAX as i128 {
+            i64::MAX
+        } else if self < i64::MIN as i128 {
+            i64::MIN
+        } else {
+            self as i64
+        }
+    }
+}
+
+impl SaturatingIntoI64 for u128 {
+    fn saturating_into(self) -> i64 {
+        self.min(i64::MAX as u128) as i64
+    }
+}
+
+impl SaturatingIntoI64 for usize {
+    fn saturating_into(self) -> i64 {
+        self.min(i64::MAX as usize) as i64
+    }
+}
+
+impl SaturatingIntoI64 for isize {
+    fn saturating_into(self) -> i64 {
+        if self > i64::MAX as isize {
+            i64::MAX
+        } else if self < i64::MIN as isize {
+            i64::MIN
+        } else {
+            self as i64
+        }
+    }
+}
 
 pub struct ScopedTrace {
     // Remove Send / Sync, since the trace needs to be finished on the same thread.
@@ -131,27 +211,6 @@ impl ScopedTrace {
         Self {
             phantom_data: PhantomData,
         }
-    }
-
-    /// Starts a count trace for the given name and count value.
-    ///
-    /// This method is used to trace the value change of an integer variable.
-    #[must_use]
-    pub fn start_count_trace<T: AsRef<CStr>>(name: &T, count: i64) -> Self {
-        count_trace(name, count);
-        Self {
-            phantom_data: PhantomData,
-        }
-    }
-
-    /// Like `start_count_trace()` but accepts a `&str` for the name.
-    ///
-    /// # Panic
-    ///
-    /// Panics if the provided name can't be converted into a CString.
-    #[must_use]
-    pub fn start_count_trace_str(name: &str, count: i64) -> Self {
-        Self::start_count_trace(&CString::new(name).expect("Contained null-byte"), count)
     }
 }
 
