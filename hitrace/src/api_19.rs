@@ -15,21 +15,8 @@ pub enum HiTraceOutputLevel {
     /// Output level for log version usage, with higher priority than Info.
     Critical = 2,
     /// Output level for nolog version usage.
-    Commercial = 3,
-    // /// Output level for range limit.
-    Max = 4, // the OG one is also 3???
-}
-
-impl From<hitrace_sys::HiTrace_Output_Level> for HiTraceOutputLevel {
-    fn from(level: hitrace_sys::HiTrace_Output_Level) -> Self {
-        match level {
-            hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_DEBUG => HiTraceOutputLevel::Debug,
-            hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_INFO => HiTraceOutputLevel::Info,
-            hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_CRITICAL => HiTraceOutputLevel::Critical,
-            hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_COMMERCIAL => HiTraceOutputLevel::Commercial,
-            _ => HiTraceOutputLevel::Max,
-        }
-    }
+    Commercial = 3
+    // There is also a "Max" option, that also is mapped to 3, but ommited
 }
 
 impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
@@ -39,7 +26,6 @@ impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
             HiTraceOutputLevel::Debug => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_DEBUG,
             HiTraceOutputLevel::Critical => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_CRITICAL,
             HiTraceOutputLevel::Commercial => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_COMMERCIAL,
-            HiTraceOutputLevel::Max => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_MAX,
         }
     }
 }
@@ -48,11 +34,11 @@ impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
 impl From<tracing_core::Level> for HiTraceOutputLevel {
     fn from(level: tracing_core::Level) -> Self {
         match level {
-            tracing_core::Level::TRACE /* 0 */ => HiTraceOutputLevel::Debug,      //0
-            tracing_core::Level::DEBUG /* 1 */ => HiTraceOutputLevel::Info,       //1
-            tracing_core::Level::INFO  /* 2 */ => HiTraceOutputLevel::Critical,   //2
-            tracing_core::Level::WARN  /* 3 */ => HiTraceOutputLevel::Commercial, //3
-            tracing_core::Level::ERROR /* 4 */ => HiTraceOutputLevel::Max,        //4
+            tracing_core::Level::TRACE /* 0 */ => HiTraceOutputLevel::Debug,       //0
+            tracing_core::Level::DEBUG /* 1 */ => HiTraceOutputLevel::Debug,       //0
+            tracing_core::Level::INFO  /* 2 */ => HiTraceOutputLevel::Info,        //1
+            tracing_core::Level::WARN  /* 3 */ => HiTraceOutputLevel::Critical,    //2
+            tracing_core::Level::ERROR /* 4 */ => HiTraceOutputLevel::Commercial,  //3
         }
     }
 }
