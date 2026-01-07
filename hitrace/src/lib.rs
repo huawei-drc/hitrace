@@ -44,7 +44,11 @@ pub fn start_trace<T: AsRef<CStr>>(name: &T) {
     start_trace_cstr(name.as_ref())
 }
 
-#[cfg(all(feature = "api-19", target_env = "ohos", not(feature = "max_level_off")))]
+#[cfg(all(
+    feature = "api-19",
+    target_env = "ohos",
+    not(feature = "max_level_off")
+))]
 pub fn start_trace_ex<T: AsRef<CStr>, U: AsRef<CStr>>(
     level: api_19::HiTraceOutputLevel,
     name: &T,
@@ -61,16 +65,16 @@ fn start_trace_cstr(name: &CStr) {
     }
 }
 
-#[cfg(all(feature = "api-19", target_env = "ohos", not(feature = "max_level_off")))]
-fn start_trace_ex_cstr(level: api_19::HiTraceOutputLevel,name: &CStr, custom_args: &CStr) {
+#[cfg(all(
+    feature = "api-19",
+    target_env = "ohos",
+    not(feature = "max_level_off")
+))]
+fn start_trace_ex_cstr(level: api_19::HiTraceOutputLevel, name: &CStr, custom_args: &CStr) {
     // SAFETY: We have a valid CStr, which is copied by `OH_HiTrace_StartTrace`.
     // The custom_args is a single String of comma separated key=value pairs.
     unsafe {
-        hitrace_sys::OH_HiTrace_StartTraceEx(
-            level.into(),
-            name.as_ptr(),
-            custom_args.as_ptr()
-        );
+        hitrace_sys::OH_HiTrace_StartTraceEx(level.into(), name.as_ptr(), custom_args.as_ptr());
     }
 }
 

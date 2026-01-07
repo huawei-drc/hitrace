@@ -1,4 +1,4 @@
-#![cfg(target_env="ohos")]
+#![cfg(target_env = "ohos")]
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,8 +15,7 @@ pub enum HiTraceOutputLevel {
     /// Output level for log version usage, with higher priority than Info.
     Critical = 2,
     /// Output level for nolog version usage.
-    Commercial = 3
-    // There is also a "Max" option, that also is mapped to 3, but ommited
+    Commercial = 3, // There is also a "Max" option, that also is mapped to 3, but ommited
 }
 
 impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
@@ -24,8 +23,12 @@ impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
         match value {
             HiTraceOutputLevel::Info => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_INFO,
             HiTraceOutputLevel::Debug => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_DEBUG,
-            HiTraceOutputLevel::Critical => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_CRITICAL,
-            HiTraceOutputLevel::Commercial => hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_COMMERCIAL,
+            HiTraceOutputLevel::Critical => {
+                hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_CRITICAL
+            }
+            HiTraceOutputLevel::Commercial => {
+                hitrace_sys::HiTrace_Output_Level::HITRACE_LEVEL_COMMERCIAL
+            }
         }
     }
 }
@@ -33,12 +36,12 @@ impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
 #[cfg(feature = "tracing-level-conversion")]
 impl From<tracing_core::Level> for HiTraceOutputLevel {
     fn from(level: tracing_core::Level) -> Self {
+        use tracing_core::Level;
         match level {
-            tracing_core::Level::TRACE /* 0 */ => HiTraceOutputLevel::Debug,       //0
-            tracing_core::Level::DEBUG /* 1 */ => HiTraceOutputLevel::Debug,       //0
-            tracing_core::Level::INFO  /* 2 */ => HiTraceOutputLevel::Info,        //1
-            tracing_core::Level::WARN  /* 3 */ => HiTraceOutputLevel::Critical,    //2
-            tracing_core::Level::ERROR /* 4 */ => HiTraceOutputLevel::Commercial,  //3
+            Level::TRACE | Level::DEBUG => HiTraceOutputLevel::Debug,
+            Level::INFO => HiTraceOutputLevel::Info,
+            Level::WARN => HiTraceOutputLevel::Critical,
+            Level::ERROR => HiTraceOutputLevel::Commercial,
         }
     }
 }
