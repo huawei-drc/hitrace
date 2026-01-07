@@ -2,7 +2,6 @@
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(i32)]
 /// Represents HiTrace output levels for API level 19+.
 /// Mirrors `HiTrace_Output_Level` from hitrace-sys.
 ///
