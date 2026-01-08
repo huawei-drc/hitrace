@@ -3,9 +3,8 @@ use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Represents HiTrace output levels for API level 19+.
-/// Mirrors `HiTrace_Output_Level` from hitrace-sys.
 ///
-/// But the actual tracing-core-0.1.36 goes Trace=0, Debug=1, Info=2, Warn=3, Error=4
+/// Mirrors `HiTrace_Output_Level` from hitrace-sys.
 pub enum HiTraceOutputLevel {
     /// Output level only for debug usage.
     Debug = 0,
