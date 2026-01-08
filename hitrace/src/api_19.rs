@@ -5,6 +5,7 @@ use std::fmt::Debug;
 /// Represents HiTrace output levels for API level 19+.
 ///
 /// Mirrors `HiTrace_Output_Level` from hitrace-sys.
+/// https://docs.rs/hitrace-sys/latest/hitrace_sys/struct.HiTrace_Output_Level.html
 pub enum HiTraceOutputLevel {
     /// Output level only for debug usage.
     Debug = 0,
@@ -31,7 +32,7 @@ impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
     }
 }
 
-#[cfg(feature = "tracing-level-conversion")]
+#[cfg(feature = "tracing-rs")]
 impl From<tracing_core::Level> for HiTraceOutputLevel {
     fn from(level: tracing_core::Level) -> Self {
         use tracing_core::Level;
