@@ -2,10 +2,9 @@
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Represents HiTrace output levels for API level 19+.
+/// Mirrors [`hitrace_sys::HiTrace_Output_Level`] for API level 19+.
 ///
-/// Mirrors `HiTrace_Output_Level` from hitrace-sys.
-/// https://docs.rs/hitrace-sys/latest/hitrace_sys/struct.HiTrace_Output_Level.html
+/// [`hitrace_sys::HiTrace_Output_Level`]: https://docs.rs/hitrace-sys/latest/hitrace_sys/struct.HiTrace_Output_Level.html
 pub enum HiTraceOutputLevel {
     /// Output level only for debug usage.
     Debug = 0,
