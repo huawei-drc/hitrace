@@ -19,7 +19,8 @@ static_assertions = "1.1.0"
 # Completely disable tracing at compile time when selected.
 max_level_off = []
 api-19 = ["hitrace-sys/api-19"]
-tracing-level-conversion = ["tracing-core"]
+## Enable interop with tracing-rs log-level types
+tracing-rs= ["tracing-core"]
 
 [dependencies]
 tracing-core = {version = "0.1.36", optional = true}
