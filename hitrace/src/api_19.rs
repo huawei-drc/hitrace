@@ -13,7 +13,7 @@ pub enum HiTraceOutputLevel {
     /// Output level for log version usage, with higher priority than Info.
     Critical = 2,
     /// Output level for nolog version usage.
-    Commercial = 3, // There is also a "Max" option, that also is mapped to 3, but ommited
+    Commercial = 3,
 }
 
 impl From<HiTraceOutputLevel> for hitrace_sys::HiTrace_Output_Level {
