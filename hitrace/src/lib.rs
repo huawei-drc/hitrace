@@ -37,8 +37,24 @@
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 
+#[cfg(feature = "api-19")]
+pub mod api_19;
+
 pub fn start_trace<T: AsRef<CStr>>(name: &T) {
     start_trace_cstr(name.as_ref())
+}
+
+#[cfg(all(
+    feature = "api-19",
+    target_env = "ohos",
+    not(feature = "max_level_off")
+))]
+pub fn start_trace_ex<T: AsRef<CStr>, U: AsRef<CStr>>(
+    level: api_19::HiTraceOutputLevel,
+    name: &T,
+    custom_args: &U,
+) {
+    start_trace_ex_cstr(level, name.as_ref(), custom_args.as_ref())
 }
 
 #[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
@@ -46,6 +62,19 @@ fn start_trace_cstr(name: &CStr) {
     // SAFETY: We have a valid CStr, which is copied by `OH_HiTrace_StartTrace`.
     unsafe {
         hitrace_sys::OH_HiTrace_StartTrace(name.as_ptr());
+    }
+}
+
+#[cfg(all(
+    feature = "api-19",
+    target_env = "ohos",
+    not(feature = "max_level_off")
+))]
+fn start_trace_ex_cstr(level: api_19::HiTraceOutputLevel, name: &CStr, custom_args: &CStr) {
+    // SAFETY: We have a valid CStr, which is copied by `OH_HiTrace_StartTrace`.
+    // The custom_args is a single String of comma separated key=value pairs.
+    unsafe {
+        hitrace_sys::OH_HiTrace_StartTraceEx(level.into(), name.as_ptr(), custom_args.as_ptr());
     }
 }
 

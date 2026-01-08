@@ -9,7 +9,7 @@ repository = "https://github.com/huawei-drc/hitrace"
 readme = "README.md"
 
 [target.'cfg(target_env = "ohos")'.dependencies]
-hitrace-sys = "0.1"
+hitrace-sys = "0.1.9"
 
 
 [dev-dependencies]
@@ -18,3 +18,9 @@ static_assertions = "1.1.0"
 [features]
 # Completely disable tracing at compile time when selected.
 max_level_off = []
+api-19 = ["hitrace-sys/api-19"]
+## Enable interop with tracing-rs log-level types
+tracing-rs= ["tracing-core"]
+
+[dependencies]
+tracing-core = {version = "0.1.36", optional = true}
