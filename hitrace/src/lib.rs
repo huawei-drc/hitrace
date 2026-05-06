@@ -40,6 +40,33 @@ use std::marker::PhantomData;
 #[cfg(feature = "api-19")]
 pub mod api_19;
 
+#[doc(hidden)]
+pub trait FinishBehavior {
+    fn finish(&self);
+}
+
+#[derive(Clone, Copy, Default)]
+#[doc(hidden)]
+pub struct DefaultFinishBehavior;
+
+impl FinishBehavior for DefaultFinishBehavior {
+    fn finish(&self) {
+        finish_trace();
+    }
+}
+
+#[cfg(all(feature = "api-19", target_env = "ohos"))]
+#[derive(Clone, Copy)]
+#[doc(hidden)]
+pub struct ExFinishBehavior(api_19::HiTraceOutputLevel);
+
+#[cfg(all(feature = "api-19", target_env = "ohos"))]
+impl FinishBehavior for ExFinishBehavior {
+    fn finish(&self) {
+        finish_trace_ex(self.0);
+    }
+}
+
 pub fn start_trace<T: AsRef<CStr>>(name: &T) {
     start_trace_cstr(name.as_ref())
 }
@@ -98,6 +125,27 @@ pub fn finish_trace() {
 
     finish_trace_()
 }
+
+/// Finishes the most recently started API-19 trace span with the matching output level.
+#[cfg(all(feature = "api-19", target_env = "ohos"))]
+pub fn finish_trace_ex(level: api_19::HiTraceOutputLevel) {
+    finish_trace_ex_(level)
+}
+
+#[cfg(all(
+    feature = "api-19",
+    target_env = "ohos",
+    not(feature = "max_level_off")
+))]
+fn finish_trace_ex_(level: api_19::HiTraceOutputLevel) {
+    unsafe {
+        hitrace_sys::OH_HiTrace_FinishTraceEx(level.into());
+    }
+}
+
+#[cfg(any(not(target_env = "ohos"), feature = "max_level_off"))]
+#[cfg(all(feature = "api-19", target_env = "ohos"))]
+fn finish_trace_ex_(_: api_19::HiTraceOutputLevel) {}
 
 /// Wrapper function for `OH_HiTrace_CountTrace` with a CStr name parameter
 #[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
@@ -196,12 +244,22 @@ impl SaturatingIntoI64 for isize {
     }
 }
 
-pub struct ScopedTrace {
+pub struct ScopedTrace<F: FinishBehavior = DefaultFinishBehavior> {
+    finish_behavior: F,
     // Remove Send / Sync, since the trace needs to be finished on the same thread.
     phantom_data: PhantomData<*mut u8>,
 }
 
-impl ScopedTrace {
+impl<F: FinishBehavior> ScopedTrace<F> {
+    fn new(finish_behavior: F) -> Self {
+        Self {
+            finish_behavior,
+            phantom_data: PhantomData,
+        }
+    }
+}
+
+impl ScopedTrace<DefaultFinishBehavior> {
     /// Starts a new ScopedTrace, which ends when the returned object is dropped.
     ///
     /// Keep in mind the general limitations of HiTrace, where a call to
@@ -211,9 +269,7 @@ impl ScopedTrace {
     #[must_use]
     pub fn start_trace<T: AsRef<CStr>>(name: &T) -> Self {
         start_trace(name);
-        Self {
-            phantom_data: PhantomData,
-        }
+        Self::new(DefaultFinishBehavior)
     }
 
     /// Like `start_trace()` but accepts a `&str`.
@@ -237,15 +293,45 @@ impl ScopedTrace {
         unsafe {
             hitrace_sys::OH_HiTrace_StartTrace(name_with_null.as_ptr());
         }
-        Self {
-            phantom_data: PhantomData,
-        }
+        Self::new(DefaultFinishBehavior)
     }
 }
 
-impl Drop for ScopedTrace {
+#[cfg(all(feature = "api-19", target_env = "ohos"))]
+impl ScopedTrace<ExFinishBehavior> {
+    /// Starts a new API-19 ScopedTrace with output level control.
+    #[must_use]
+    pub fn start_trace_ex<T: AsRef<CStr>, U: AsRef<CStr>>(
+        level: api_19::HiTraceOutputLevel,
+        name: &T,
+        custom_args: &U,
+    ) -> Self {
+        start_trace_ex(level, name, custom_args);
+        Self::new(ExFinishBehavior(level))
+    }
+
+    /// Like `start_trace_ex()` but accepts `&str` arguments.
+    ///
+    /// # Panic
+    ///
+    /// Panics if the provided arguments can't be converted into `CString`s.
+    #[must_use]
+    pub fn start_trace_ex_str(
+        level: api_19::HiTraceOutputLevel,
+        name: &str,
+        custom_args: &str,
+    ) -> Self {
+        Self::start_trace_ex(
+            level,
+            &CString::new(name).expect("Contained null-byte"),
+            &CString::new(custom_args).expect("Contained null-byte"),
+        )
+    }
+}
+
+impl<F: FinishBehavior> Drop for ScopedTrace<F> {
     fn drop(&mut self) {
-        finish_trace()
+        self.finish_behavior.finish();
     }
 }
 

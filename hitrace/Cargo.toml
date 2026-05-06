@@ -1,6 +1,6 @@
 [package]
 name = "hitrace"
-version = "0.1.6"
+version = "0.2.0"
 edition = "2021"
 keywords = ["OpenHarmony", "HarmonyOS", "hitrace", "tracing"]
 license = "Apache-2.0"
