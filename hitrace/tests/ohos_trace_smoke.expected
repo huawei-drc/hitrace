@@ -1,0 +1,5 @@
+B|<PID>|H:hitrace_xtask_sync_span|M<TAG>
+E|<PID>|M<TAG>
+B|<PID>|H:hitrace_xtask_ex_span|I<TAG>|phase=hitrace_xtask,result=ok
+E|<PID>|I<TAG>
+C|<PID>|H:hitrace_xtask_counter|7|M<TAG>

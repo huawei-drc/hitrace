@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "hitrace",
-    "macro"
+    "macro",
+    "xtask"
 ]
 resolver = "2"
