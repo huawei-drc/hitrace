@@ -64,6 +64,11 @@ jobs:
             ohos-test-runner
       - name: Start Oniro emulator
         uses: openharmony-rs/emulator-action@v0.1
+      - name: Let emulator services finish booting
+        # hdc may connect before hitrace's recording backend is ready;
+        # without this delay `hitrace --trace_begin` may fail with
+        # "OpenRecording failed, errorCode(1)".
+        run: sleep 20
       - name: Run OHOS trace smoke test
         run: cargo xtask ohos-trace-smoke
         env:

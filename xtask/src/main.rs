@@ -30,15 +30,15 @@ fn run_ohos_trace_smoke() -> Result<()> {
     let linker = discover_linker(&target)?;
     let previous_level = get_trace_level()?;
 
-    hdc_shell("hitrace --trace_level Info")?;
+    hdc_hitrace("--trace_level Info")?;
     hdc_shell(format!("rm -f {TRACE_PATH_ON_DEVICE}"))?;
-    hdc_shell(format!("hitrace --trace_begin {TRACE_CATEGORY}"))?;
+    hdc_hitrace(format!("--trace_begin {TRACE_CATEGORY}"))?;
 
     let test_result = run_cargo_ohos_test(&repo_root, &target, &linker);
-    let finish_result = hdc_shell(format!(
-        "hitrace --trace_finish -o {TRACE_PATH_ON_DEVICE} {TRACE_CATEGORY}"
+    let finish_result = hdc_hitrace(format!(
+        "--trace_finish -o {TRACE_PATH_ON_DEVICE} {TRACE_CATEGORY}"
     ));
-    let restore_result = hdc_shell(format!("hitrace --trace_level {previous_level}"));
+    let restore_result = hdc_hitrace(format!("--trace_level {previous_level}"));
 
     test_result?;
     finish_result?;
@@ -181,6 +181,38 @@ fn hdc_shell<S: AsRef<str>>(command: S) -> Result<()> {
         .status()
         .with_context(|| format!("failed to run hdc shell command: {}", command.as_ref()))?;
     ensure_success(status, &format!("hdc shell {}", command.as_ref()))
+}
+
+// The hitrace CLI exits 0 even when recording setup fails, only signalling the
+// failure via lines like ` error: OpenRecording failed` or `[Fail]…`. Capture
+// both streams so we can detect those and fail loudly.
+fn hdc_hitrace<S: AsRef<str>>(args: S) -> Result<()> {
+    use std::io::Write;
+    let args = args.as_ref();
+    let cmd = format!("hitrace {args}");
+    let output = Command::new("hdc")
+        .arg("shell")
+        .arg(&cmd)
+        .output()
+        .with_context(|| format!("failed to run hdc shell command: {cmd}"))?;
+
+    let _ = std::io::stdout().write_all(&output.stdout);
+    let _ = std::io::stderr().write_all(&output.stderr);
+
+    ensure_success(output.status, &format!("hdc shell {cmd}"))?;
+
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    if let Some(line) = combined
+        .lines()
+        .find(|line| line.contains(" error:") || line.contains("[Fail]"))
+    {
+        bail!("`hitrace {args}` reported a failure: {line}");
+    }
+    Ok(())
 }
 
 fn hdc_shell_output<S: AsRef<str>>(command: S) -> Result<String> {
