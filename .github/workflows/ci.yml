@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - ci
   pull_request:
 
 jobs:
@@ -69,6 +70,15 @@ jobs:
         # without this delay `hitrace --trace_begin` may fail with
         # "OpenRecording failed, errorCode(1)".
         run: sleep 20
+      - name: debug
+        run: |
+          set -x
+          hdc shell ls /sys/kernel/tracing /sys/kernel/debug/tracing 2>&1 || true
+          hdc shell cat /sys/kernel/tracing/tracing_on 2>&1 || true
+          hdc shell cat /sys/kernel/tracing/current_tracer 2>&1 || true
+          hdc shell hitrace --list_categories 2>&1 || true
+          hdc shell hitrace -l 2>&1 || true
+          hdc shell ps -ef 2>&1 | grep -iE 'hitrace|hiprofiler|hilog' || true
       - name: Run OHOS trace smoke test
         run: cargo xtask ohos-trace-smoke
         env:
