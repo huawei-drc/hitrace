@@ -14,6 +14,7 @@ hitrace-sys = "0.1.9"
 
 [dev-dependencies]
 static_assertions = "1.1.0"
+hitrace-macro = { path = "../macro" }
 
 [features]
 # Completely disable tracing at compile time when selected.

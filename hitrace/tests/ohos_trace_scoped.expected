@@ -1,0 +1,4 @@
+B|<PID>|H:hitrace_xtask_scoped_default|M<TAG>
+E|<PID>|M<TAG>
+B|<PID>|H:hitrace_xtask_scoped_critical|C<TAG>|scoped=true
+E|<PID>|C<TAG>

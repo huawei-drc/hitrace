@@ -4,13 +4,46 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
-const TRACE_PATH_ON_DEVICE: &str = "/data/local/tmp/hitrace-xtask-smoke.ftrace";
 const TRACE_CATEGORY: &str = "app";
-const EXPECTED_TRACE_PATH: &str = "hitrace/tests/ohos_trace_smoke.expected";
-const FILTERED_TRACE_PATH: &str = "target/xtask/hitrace-xtask-smoke.filtered";
-const SYNC_SPAN_NAME: &str = "hitrace_xtask_sync_span";
-const EX_SPAN_NAME: &str = "hitrace_xtask_ex_span";
-const EX_CUSTOM_ARGS: &str = "phase=hitrace_xtask,result=ok";
+
+struct Scenario {
+    name: &'static str,
+    test_binary: &'static str,
+    pinpoint_marker: &'static str,
+    features: &'static [&'static str],
+    fixture: &'static str,
+}
+
+const SCENARIOS: &[Scenario] = &[
+    Scenario {
+        name: "basic",
+        test_binary: "ohos_trace_basic",
+        pinpoint_marker: "H:hitrace_xtask_basic_sync",
+        features: &[],
+        fixture: "hitrace/tests/ohos_trace_basic.expected",
+    },
+    Scenario {
+        name: "api19",
+        test_binary: "ohos_trace_api19",
+        pinpoint_marker: "H:hitrace_xtask_api19_span",
+        features: &["api-19"],
+        fixture: "hitrace/tests/ohos_trace_api19.expected",
+    },
+    Scenario {
+        name: "scoped",
+        test_binary: "ohos_trace_scoped",
+        pinpoint_marker: "H:hitrace_xtask_scoped_default",
+        features: &["api-19"],
+        fixture: "hitrace/tests/ohos_trace_scoped.expected",
+    },
+    Scenario {
+        name: "macro",
+        test_binary: "ohos_trace_macro",
+        pinpoint_marker: "H:ohos_trace_macro::hitrace_xtask_macro_target",
+        features: &[],
+        fixture: "hitrace/tests/ohos_trace_macro.expected",
+    },
+];
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -31,57 +64,88 @@ fn run_ohos_trace_smoke() -> Result<()> {
     let previous_level = get_trace_level()?;
 
     hdc_hitrace("--trace_level Info")?;
-    hdc_shell(format!("rm -f {TRACE_PATH_ON_DEVICE}"))?;
+
+    let outcome = SCENARIOS
+        .iter()
+        .try_for_each(|scenario| run_scenario(&repo_root, &target, &linker, scenario));
+
+    let restore_result = hdc_hitrace(format!("--trace_level {previous_level}"));
+
+    outcome?;
+    restore_result?;
+
+    println!("Verified all hitrace scenarios.");
+    Ok(())
+}
+
+fn run_scenario(repo_root: &Path, target: &str, linker: &Path, scenario: &Scenario) -> Result<()> {
+    println!("=== running scenario `{}` ===", scenario.name);
+
+    let trace_path_on_device = format!("/data/local/tmp/hitrace-xtask-{}.ftrace", scenario.name);
+    let trace_dir = repo_root.join("target/xtask");
+    fs::create_dir_all(&trace_dir).context("failed to create target/xtask")?;
+    let local_trace_path = trace_dir.join(format!("hitrace-xtask-{}.ftrace", scenario.name));
+    let filtered_trace_path = trace_dir.join(format!("hitrace-xtask-{}.filtered", scenario.name));
+
+    hdc_shell(format!("rm -f {trace_path_on_device}"))?;
     hdc_hitrace(format!("--trace_begin {TRACE_CATEGORY}"))?;
 
-    let test_result = run_cargo_ohos_test(&repo_root, &target, &linker);
+    let test_result = run_cargo_ohos_test(repo_root, target, linker, scenario);
     let finish_result = hdc_hitrace(format!(
-        "--trace_finish -o {TRACE_PATH_ON_DEVICE} {TRACE_CATEGORY}"
+        "--trace_finish -o {trace_path_on_device} {TRACE_CATEGORY}"
     ));
-    let restore_result = hdc_hitrace(format!("--trace_level {previous_level}"));
 
     test_result?;
     finish_result?;
-    restore_result?;
 
-    let trace_dir = repo_root.join("target/xtask");
-    fs::create_dir_all(&trace_dir).context("failed to create target/xtask")?;
-    let trace_path = trace_dir.join("hitrace-xtask-smoke.ftrace");
-
-    hdc_file_recv(TRACE_PATH_ON_DEVICE, &trace_path)?;
-    let filtered_trace_path = repo_root.join(FILTERED_TRACE_PATH);
-    assert_trace_matches_fixture(&repo_root, &trace_path, &filtered_trace_path)?;
+    hdc_file_recv(&trace_path_on_device, &local_trace_path)?;
+    assert_trace_matches_fixture(repo_root, &local_trace_path, &filtered_trace_path, scenario)?;
 
     println!(
-        "Verified HiTrace markers in {} using fixture {}",
-        trace_path.display(),
-        repo_root.join(EXPECTED_TRACE_PATH).display()
+        "Verified `{}` markers in {} using fixture {}",
+        scenario.name,
+        local_trace_path.display(),
+        repo_root.join(scenario.fixture).display()
     );
     Ok(())
 }
 
-fn run_cargo_ohos_test(repo_root: &Path, target: &str, linker: &Path) -> Result<()> {
+fn run_cargo_ohos_test(
+    repo_root: &Path,
+    target: &str,
+    linker: &Path,
+    scenario: &Scenario,
+) -> Result<()> {
     let linker_env = cargo_target_env_var(target, "LINKER");
     let runner_env = cargo_target_env_var(target, "RUNNER");
-    let status = Command::new("cargo")
-        .arg("test")
+    let mut cmd = Command::new("cargo");
+    cmd.arg("test")
         .arg("-p")
         .arg("hitrace")
         .arg("--test")
-        .arg("ohos_trace_smoke")
-        .arg("--features")
-        .arg("api-19")
-        .arg("--target")
+        .arg(scenario.test_binary);
+    if !scenario.features.is_empty() {
+        cmd.arg("--features").arg(scenario.features.join(","));
+    }
+    cmd.arg("--target")
         .arg(target)
         .arg("--")
         .arg("--nocapture")
         .env(&linker_env, linker.as_os_str())
         .env(&runner_env, "ohos-test-runner")
-        .current_dir(repo_root)
+        .current_dir(repo_root);
+
+    let status = cmd
         .status()
         .context("failed to run cargo test for OpenHarmony")?;
 
-    ensure_success(status, "cargo test through ohos-test-runner")
+    ensure_success(
+        status,
+        &format!(
+            "cargo test --test {} through ohos-test-runner",
+            scenario.test_binary
+        ),
+    )
 }
 
 fn ensure_ohos_test_runner_installed() -> Result<()> {
@@ -245,10 +309,11 @@ fn assert_trace_matches_fixture(
     repo_root: &Path,
     trace_path: &Path,
     filtered_trace_path: &Path,
+    scenario: &Scenario,
 ) -> Result<()> {
     let trace = fs::read_to_string(trace_path)
         .with_context(|| format!("failed to read {}", trace_path.display()))?;
-    let filtered = filter_trace_output(&trace)?;
+    let filtered = filter_trace_output(&trace, scenario.pinpoint_marker)?;
     let filtered_with_newline = format!("{}\n", filtered.join("\n"));
 
     if let Some(parent) = filtered_trace_path.parent() {
@@ -262,13 +327,14 @@ fn assert_trace_matches_fixture(
         )
     })?;
 
-    let expected_path = repo_root.join(EXPECTED_TRACE_PATH);
+    let expected_path = repo_root.join(scenario.fixture);
     let expected = fs::read_to_string(&expected_path)
         .with_context(|| format!("failed to read {}", expected_path.display()))?;
 
     if filtered_with_newline != expected {
         bail!(
-            "filtered trace output did not match fixture {}\nactual filtered output written to {}",
+            "filtered trace output for `{}` did not match fixture {}\nactual filtered output written to {}",
+            scenario.name,
             expected_path.display(),
             filtered_trace_path.display()
         );
@@ -277,14 +343,16 @@ fn assert_trace_matches_fixture(
     Ok(())
 }
 
-fn filter_trace_output(trace: &str) -> Result<Vec<String>> {
+fn filter_trace_output(trace: &str, pinpoint_marker: &str) -> Result<Vec<String>> {
     let trace_lines: Vec<&str> = trace.lines().filter_map(extract_trace_payload).collect();
 
     let pid = trace_lines
         .iter()
-        .find(|payload| payload.contains(&format!("H:{SYNC_SPAN_NAME}")))
+        .find(|payload| payload.contains(pinpoint_marker))
         .and_then(|payload| payload.split('|').nth(1))
-        .context("failed to find the smoke-test trace PID in the captured trace")?;
+        .with_context(|| {
+            format!("failed to find the pinpoint marker `{pinpoint_marker}` in the captured trace")
+        })?;
 
     let filtered: Vec<String> = trace_lines
         .into_iter()
@@ -293,14 +361,7 @@ fn filter_trace_output(trace: &str) -> Result<Vec<String>> {
         .collect();
 
     if filtered.is_empty() {
-        bail!("did not find any tracing_mark_write output for the smoke-test process");
-    }
-
-    if !filtered
-        .iter()
-        .any(|payload| payload.contains(&format!("H:{EX_SPAN_NAME}")))
-    {
-        bail!("filtered trace output is missing the API-19 ex span marker");
+        bail!("did not find any tracing_mark_write output for the test process");
     }
 
     Ok(filtered)
@@ -330,10 +391,7 @@ fn normalize_trace_payload(payload: &str) -> String {
 }
 
 fn normalize_trace_segment(segment: &str) -> String {
-    if segment == EX_CUSTOM_ARGS
-        || segment.starts_with("H:")
-        || segment.chars().all(|ch| ch.is_ascii_digit())
-    {
+    if segment.starts_with("H:") || segment.chars().all(|ch| ch.is_ascii_digit()) {
         return segment.to_owned();
     }
 
