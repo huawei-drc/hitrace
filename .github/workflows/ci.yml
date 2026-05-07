@@ -61,7 +61,7 @@ jobs:
         # hdc may connect before hitrace's recording backend is ready;
         # without this delay `hitrace --trace_begin` may fail with
         # "OpenRecording failed, errorCode(1)".
-        run: sleep 30
+        run: sleep 50
       - name: debug
         run: |
           set -x
