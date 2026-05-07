@@ -1,0 +1,4 @@
+B|<PID>|H:hitrace_xtask_basic_sync|M<TAG>
+E|<PID>|M<TAG>
+C|<PID>|H:hitrace_xtask_basic_counter|7|M<TAG>
+C|<PID>|H:hitrace_xtask_basic_saturating|9223372036854775807|M<TAG>
