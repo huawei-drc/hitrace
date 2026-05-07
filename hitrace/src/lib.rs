@@ -291,7 +291,7 @@ impl ScopedTrace<DefaultFinishBehavior> {
         // SAFETY: The User promises that the `str` slice is a valid null-terminated C-style string.
         #[cfg(all(target_env = "ohos", not(feature = "max_level_off")))]
         unsafe {
-            hitrace_sys::OH_HiTrace_StartTrace(name_with_null.as_ptr());
+            hitrace_sys::OH_HiTrace_StartTrace(name_with_null.as_ptr().cast::<core::ffi::c_char>());
         }
         Self::new(DefaultFinishBehavior)
     }

@@ -33,3 +33,51 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
+  ohos-emulator-test:
+    name: Oniro Emulator Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-ohos
+      - name: Setup OpenHarmony SDK
+        id: setup_sdk
+        uses: openharmony-rs/setup-ohos-sdk@v1.0.0
+        with:
+          version: 6.1
+      - name: Add OHOS toolchains to PATH
+        run: |
+          echo "$(dirname "${OHOS_SDK_NATIVE}")/toolchains" >> "$GITHUB_PATH"
+        env:
+          OHOS_SDK_NATIVE: ${{ steps.setup_sdk.outputs.ohos_sdk_native }}
+      - name: Install ohos-test-runner
+        run: |
+          cargo install --locked \
+            ohos-test-runner
+      - name: Start Oniro emulator
+        uses: openharmony-rs/emulator-action@v0.1
+      - name: Let emulator services finish booting
+        # hdc may connect before hitrace's recording backend is ready;
+        # without this delay `hitrace --trace_begin` may fail with
+        # "OpenRecording failed, errorCode(1)".
+        run: sleep 30
+      - name: debug
+        run: |
+          set -x
+          hdc shell ls /sys/kernel/tracing /sys/kernel/debug/tracing 2>&1 || true
+          hdc shell cat /sys/kernel/tracing/tracing_on 2>&1 || true
+          hdc shell cat /sys/kernel/tracing/current_tracer 2>&1 || true
+      - name: Run OHOS trace smoke test
+        run: cargo xtask ohos-trace-smoke
+        env:
+          OHOS_TARGET: x86_64-unknown-linux-ohos
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_OHOS_LINKER: ${{ steps.setup_sdk.outputs.ohos_sdk_native }}/llvm/bin/x86_64-unknown-linux-ohos-clang
+      - name: Upload OHOS trace artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ohos-trace-artifacts
+          path: |
+            target/xtask/
+            /tmp/oniro-emulator.log

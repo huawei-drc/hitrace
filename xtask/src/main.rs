@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
-const TARGET: &str = "aarch64-unknown-linux-ohos";
 const TRACE_PATH_ON_DEVICE: &str = "/data/local/tmp/hitrace-xtask-smoke.ftrace";
 const TRACE_CATEGORY: &str = "app";
 const EXPECTED_TRACE_PATH: &str = "hitrace/tests/ohos_trace_smoke.expected";
@@ -27,18 +26,19 @@ fn run_ohos_trace_smoke() -> Result<()> {
         .context("xtask is expected to live under the workspace root")?
         .to_path_buf();
     ensure_ohos_test_runner_installed()?;
-    let linker = discover_linker()?;
+    let target = ohos_target()?;
+    let linker = discover_linker(&target)?;
     let previous_level = get_trace_level()?;
 
-    hdc_shell("hitrace --trace_level Info")?;
+    hdc_hitrace("--trace_level Info")?;
     hdc_shell(format!("rm -f {TRACE_PATH_ON_DEVICE}"))?;
-    hdc_shell(format!("hitrace --trace_begin {TRACE_CATEGORY}"))?;
+    hdc_hitrace(format!("--trace_begin {TRACE_CATEGORY}"))?;
 
-    let test_result = run_cargo_ohos_test(&repo_root, &linker);
-    let finish_result = hdc_shell(format!(
-        "hitrace --trace_finish -o {TRACE_PATH_ON_DEVICE} {TRACE_CATEGORY}"
+    let test_result = run_cargo_ohos_test(&repo_root, &target, &linker);
+    let finish_result = hdc_hitrace(format!(
+        "--trace_finish -o {TRACE_PATH_ON_DEVICE} {TRACE_CATEGORY}"
     ));
-    let restore_result = hdc_shell(format!("hitrace --trace_level {previous_level}"));
+    let restore_result = hdc_hitrace(format!("--trace_level {previous_level}"));
 
     test_result?;
     finish_result?;
@@ -60,7 +60,9 @@ fn run_ohos_trace_smoke() -> Result<()> {
     Ok(())
 }
 
-fn run_cargo_ohos_test(repo_root: &Path, linker: &Path) -> Result<()> {
+fn run_cargo_ohos_test(repo_root: &Path, target: &str, linker: &Path) -> Result<()> {
+    let linker_env = cargo_target_env_var(target, "LINKER");
+    let runner_env = cargo_target_env_var(target, "RUNNER");
     let status = Command::new("cargo")
         .arg("test")
         .arg("-p")
@@ -70,17 +72,11 @@ fn run_cargo_ohos_test(repo_root: &Path, linker: &Path) -> Result<()> {
         .arg("--features")
         .arg("api-19")
         .arg("--target")
-        .arg(TARGET)
+        .arg(target)
         .arg("--")
         .arg("--nocapture")
-        .env(
-            "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_LINKER",
-            linker.as_os_str(),
-        )
-        .env(
-            "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_RUNNER",
-            "ohos-test-runner",
-        )
+        .env(&linker_env, linker.as_os_str())
+        .env(&runner_env, "ohos-test-runner")
         .current_dir(repo_root)
         .status()
         .context("failed to run cargo test for OpenHarmony")?;
@@ -104,8 +100,36 @@ install it with `cargo install --locked ohos-test-runner`, then rerun `cargo xta
     )
 }
 
-fn discover_linker() -> Result<PathBuf> {
-    if let Some(linker) = env::var_os("CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_LINKER") {
+fn ohos_target() -> Result<String> {
+    if let Ok(target) = env::var("OHOS_TARGET") {
+        return Ok(target);
+    }
+
+    let arch = hdc_shell_output("uname -m")
+        .context("failed to probe device architecture via hdc; set OHOS_TARGET explicitly")?;
+    let arch = arch.trim();
+
+    match arch {
+        "aarch64" | "arm64" => Ok("aarch64-unknown-linux-ohos".to_owned()),
+        "x86_64" => Ok("x86_64-unknown-linux-ohos".to_owned()),
+        "armv7l" | "armv7" => Ok("armv7-unknown-linux-ohos".to_owned()),
+        other => bail!(
+            "unsupported OpenHarmony device architecture `{other}` reported by `hdc shell uname -m`; set OHOS_TARGET explicitly"
+        ),
+    }
+}
+
+fn cargo_target_env_var(target: &str, suffix: &str) -> String {
+    format!(
+        "CARGO_TARGET_{}_{}",
+        target.replace('-', "_").to_uppercase(),
+        suffix
+    )
+}
+
+fn discover_linker(target: &str) -> Result<PathBuf> {
+    let linker_env = cargo_target_env_var(target, "LINKER");
+    if let Some(linker) = env::var_os(&linker_env) {
         return Ok(PathBuf::from(linker));
     }
 
@@ -124,9 +148,7 @@ fn discover_linker() -> Result<PathBuf> {
         let Ok(version) = name.parse::<u32>() else {
             continue;
         };
-        let candidate = entry
-            .path()
-            .join("native/llvm/bin/aarch64-unknown-linux-ohos-clang");
+        let candidate = entry.path().join(format!("native/llvm/bin/{target}-clang"));
         if candidate.is_file() {
             match &best {
                 Some((best_version, _)) if *best_version >= version => {}
@@ -136,9 +158,7 @@ fn discover_linker() -> Result<PathBuf> {
     }
 
     best.map(|(_, path)| path).ok_or_else(|| {
-        anyhow!(
-            "could not find the OpenHarmony clang linker; set CARGO_TARGET_AARCH64_UNKNOWN_LINUX_OHOS_LINKER"
-        )
+        anyhow!("could not find the OpenHarmony clang linker for target {target}; set {linker_env}")
     })
 }
 
@@ -161,6 +181,38 @@ fn hdc_shell<S: AsRef<str>>(command: S) -> Result<()> {
         .status()
         .with_context(|| format!("failed to run hdc shell command: {}", command.as_ref()))?;
     ensure_success(status, &format!("hdc shell {}", command.as_ref()))
+}
+
+// The hitrace CLI exits 0 even when recording setup fails, only signalling the
+// failure via lines like ` error: OpenRecording failed` or `[Fail]…`. Capture
+// both streams so we can detect those and fail loudly.
+fn hdc_hitrace<S: AsRef<str>>(args: S) -> Result<()> {
+    use std::io::Write;
+    let args = args.as_ref();
+    let cmd = format!("hitrace {args}");
+    let output = Command::new("hdc")
+        .arg("shell")
+        .arg(&cmd)
+        .output()
+        .with_context(|| format!("failed to run hdc shell command: {cmd}"))?;
+
+    let _ = std::io::stdout().write_all(&output.stdout);
+    let _ = std::io::stderr().write_all(&output.stderr);
+
+    ensure_success(output.status, &format!("hdc shell {cmd}"))?;
+
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    if let Some(line) = combined
+        .lines()
+        .find(|line| line.contains(" error:") || line.contains("[Fail]"))
+    {
+        bail!("`hitrace {args}` reported a failure: {line}");
+    }
+    Ok(())
 }
 
 fn hdc_shell_output<S: AsRef<str>>(command: S) -> Result<String> {
