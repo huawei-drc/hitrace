@@ -36,11 +36,6 @@ jobs:
   ohos-emulator-test:
     name: Oniro Emulator Test
     runs-on: ubuntu-latest
-    env:
-      # Pinned to upstream HEAD that contains the device-hash fix. Drop the
-      # --git/--rev flags below in favour of a plain `cargo install ohos-test-runner`
-      # once a release with that fix is published.
-      OHOS_TEST_RUNNER_REV: 4ad3e3e14845522a87bb4c4b4957d34323662183
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -59,8 +54,6 @@ jobs:
       - name: Install ohos-test-runner
         run: |
           cargo install --locked \
-            --git https://github.com/openharmony-rs/ohos-test-runner.git \
-            --rev "${OHOS_TEST_RUNNER_REV}" \
             ohos-test-runner
       - name: Start Oniro emulator
         uses: openharmony-rs/emulator-action@v0.1
