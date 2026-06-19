@@ -25,11 +25,18 @@ use proc_macro::TokenStream;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
+use syn::{parse_macro_input, ItemMod};
 
 #[proc_macro_attribute]
 pub fn trace_fn(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = TokenStream2::from(input);
     trace_fn_(input).into()
+}
+
+#[proc_macro_attribute]
+pub fn trace_all_fns(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let input_mod = parse_macro_input!(input as syn::ItemMod);
+    trace_all_fns_in_mod(input_mod).into()
 }
 
 fn trace_fn_(input: TokenStream2) -> TokenStream2 {
@@ -52,4 +59,9 @@ fn trace_fn_(input: TokenStream2) -> TokenStream2 {
     func.block.stmts.insert(1, call_hitrace_stmt);
 
     item.into_token_stream()
+}
+
+fn trace_all_fns_in_mod(input_mod: ItemMod) -> TokenStream2 {
+    let elements = input_mod.content;
+    todo!()
 }
